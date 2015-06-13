@@ -1,0 +1,101 @@
+---
+title: "Reproducible Research - Peer Assessment #2"
+output: html_document
+---
+# An Analysis of the Health and Economic Impact of Severe Weather Events
+
+
+##Synopsis
+This analysis set out to determine which types of severe weather events have had the most significant impact on both population health and the economy, according to the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. According to NOAA, this data base tracks "the occurrence of storms and other significant weather phenomena having sufficient intensity to cause loss of life, injuries, significant property damage, and/or disruption to commerce".
+
+The specific questions to be addressed are:
+
+1. Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+2. Across the United States, which types of events have the greatest economic consequences?
+
+[SUMMARY OF RESULTS]
+
+
+
+##Data Processing
+The NOAA database was acquired from the course website (https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2) on `r date()`. The data was downloaded in the form of a comma-separated-value file compressed via the bzip2 algorithm. Details on the source dataset is available at: https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf
+
+```{r download_file}
+if(!file.exists("repdata_data_StormData.csv.bz2"))
+   download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2", "repdata_data_StormData.csv.bz2", mode="wb")
+```
+
+The file was then loaded into a data frame (no need to decompress)
+```{r read_file, cache=TRUE}
+repdata_data_StormData <- read.csv("repdata_data_StormData.csv.bz2", )
+```
+
+The data set consists of 902k rows and 37 variables.
+
+```{r}
+str(repdata_data_StormData)
+head(repdata_data_StormData)
+```
+
+
+
+
+The variables of most interest to the analysis are the columns that indicate the event type and the relative health or economic impact:
+
+        EVTYPE: Factor w/ 985 levels 
+        FATALITIES: num  
+        INJURIES  : num  
+        PROPDMG   : num  
+        PROPDMGEXP: Factor w/ 19 levels 
+        CROPDMG   : num  
+        CROPDMGEXP: Factor w/ 9 levels 
+
+The data set is filtered to include only these columns:
+```{r subset_columns}
+data <- repdata_data_StormData[,c("EVTYPE", "FATALITIES", "INJURIES", "PROPDMG", "PROPDMGEXP", "CROPDMG", "CROPDMGEXP")]
+str(data)
+head(data)
+```
+
+Multiple issues with the event type values need to be addressed. 
+
+1. Event Type values are foreced to UPPER CASE
+2. The property damage and crop damage values are raised to the approriate power of 10, as indicated by the PROPDMGEXP / CROPDMGEXP columns
+3. Rows with invalid exponent values (NA, +, -, ?) are removed. 
+
+
+```{r}
+data$EVTYPE <- as.factor(toupper(data$EVTYPE))
+
+data$PROPDMG[data$PROPDMGEXP=="H" | data$PROPDMGEXP=="h"] <- data$PROPDMG[data$PROPDMGEXP=="H" | data$PROPDMGEXP=="h"] * 100
+data$PROPDMG[data$PROPDMGEXP=="K" | data$PROPDMGEXP=="k"] <- data$PROPDMG[data$PROPDMGEXP=="K" | data$PROPDMGEXP=="k"] * 1000
+data$PROPDMG[data$PROPDMGEXP=="M" | data$PROPDMGEXP=="m"] <- data$PROPDMG[data$PROPDMGEXP=="M" | data$PROPDMGEXP=="m"] * 1000000
+data$PROPDMG[data$PROPDMGEXP=="B" | data$PROPDMGEXP=="b"] <- data$PROPDMG[data$PROPDMGEXP=="B" | data$PROPDMGEXP=="b"] * 1000000000
+
+data$CROPDMG[data$CROPDMGEXP=="H" | data$CROPDMGEXP=="h"] <- data$CROPDMG[data$CROPDMGEXP=="H" | data$CROPDMGEXP=="h"] * 100
+data$CROPDMG[data$CROPDMGEXP=="K" | data$CROPDMGEXP=="k"] <- data$CROPDMG[data$CROPDMGEXP=="K" | data$CROPDMGEXP=="k"] * 1000
+data$CROPDMG[data$CROPDMGEXP=="M" | data$CROPDMGEXP=="m"] <- data$CROPDMG[data$CROPDMGEXP=="M" | data$CROPDMGEXP=="m"] * 1000000
+data$CROPDMG[data$CROPDMGEXP=="B" | data$CROPDMGEXP=="b"] <- data$CROPDMG[data$CROPDMGEXP=="B" | data$CROPDMGEXP=="b"] * 1000000000
+
+for(x in 1:9){
+        data$PROPDMG[data$PROPDMGEXP==as.character(x)] <- data$PROPDMG[data$PROPDMGEXP==as.character(x)] * 10^x
+        data$CROPDMG[data$CROPDMGEXP==as.character(x)] <- data$CROPDMG[data$CROPDMGEXP==as.character(x)] * 10^x
+}
+
+data <- data[!data$PROPDMGEXP %in% c("+","?", "-"),]
+data <- data[!data$CROPDMGEXP %in% c("+","?", "-"),]
+
+
+data$EVTYPE[data$EVTYPE=="WILD FIRES"] <- "WILDFIRE"
+data$EVTYPE[data$EVTYPE=="WILDFIRES"] <- "WILDFIRE"
+```
+
+
+
+##Results
+```{r}
+data$combineddmg <- data$PROPDMG + data$CROPDMG
+aggregate(PROPDMG~EVTYPE, data=data, sum))
+aggregate(CROPDMG~EVTYPE, data=data, sum)
+aggregate(combineddmg~EVTYPE, data=data, sum)
+```
